@@ -6,7 +6,7 @@
 
 ## 🌐 Ver en línea
 
-👉 **[https://TU_USUARIO_GITHUB.github.io/TU_REPO/](https://TU_USUARIO_GITHUB.github.io/TU_REPO/)**
+👉 **VER RESULTADOS(https://ernestoleonidas.github.io/TU_REPO/)**
 
 ## 🏔️ Qué incluye
 
