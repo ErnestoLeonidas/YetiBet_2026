@@ -6,7 +6,7 @@
 
 ## 🌐 Ver en línea
 
-👉 **VER RESULTADOS(https://ernestoleonidas.github.io/TU_REPO/)**
+👉 **VER RESULTADOS: https://ernestoleonidas.github.io/YetiBet_2026/**
 
 ## 🏔️ Qué incluye
 
