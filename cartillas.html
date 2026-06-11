@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cartillas · YetiBet 2026</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
+  <link href="app.css" rel="stylesheet">
+</head>
+<body>
+
+<nav class="yeti-nav">
+  <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <a class="brand" href="index.html">YETIBET <span class="y26">2026</span></a>
+    <div class="d-flex gap-3">
+      <a class="nav-link" href="index.html">Inicio</a>
+      <a class="nav-link" href="ranking.html">Ranking</a>
+      <a class="nav-link active" href="cartillas.html">Cartillas</a>
+      <a class="nav-link" href="resultados.html">Resultados</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <h1 class="fs-2 mb-1">📋 Cartillas</h1>
+  <p class="text-secondary mb-4">Elige un participante para revisar sus predicciones contra los resultados reales.</p>
+
+  <div class="row g-3 align-items-end mb-4">
+    <div class="col-sm-6 col-md-4">
+      <label class="form-label fw-semibold" for="selParticipante">Participante</label>
+      <select class="form-select" id="selParticipante" disabled>
+        <option>Cargando…</option>
+      </select>
+    </div>
+    <div class="col" id="resumen"></div>
+  </div>
+
+  <div class="card-yeti p-0 overflow-hidden d-none" id="tarjetaTabla">
+    <div class="table-responsive">
+      <table class="table mb-0 pizarra align-middle">
+        <thead>
+          <tr>
+            <th class="ps-3">#</th>
+            <th class="d-none d-md-table-cell">Grupo</th>
+            <th>Partido</th>
+            <th class="text-center">Marcador</th>
+            <th class="text-center">Predicción</th>
+            <th class="text-center">Real</th>
+            <th class="text-center pe-3"></th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer class="pie container">YetiBet 2026</footer>
+
+<script src="app.js"></script>
+<script>
+let DATOS = null;
+
+(async () => {
+  const sel = document.getElementById('selParticipante');
+  try {
+    DATOS = await cargarDatos();
+    const nombres = Object.keys(DATOS.cartillas || {}).sort();
+
+    if (!nombres.length) {
+      sel.innerHTML = '<option>No hay cartillas cargadas</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— Selecciona —</option>' +
+      nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+    sel.disabled = false;
+    sel.addEventListener('change', () => pintarCartilla(sel.value));
+
+    /* permitir link directo: cartillas.html?p=Nombre */
+    const param = new URLSearchParams(location.search).get('p');
+    if (param && nombres.includes(param)) { sel.value = param; pintarCartilla(param); }
+  } catch (e) {
+    mostrarError(document.querySelector('main'), e.message);
+  }
+})();
+
+function pintarCartilla(nombre) {
+  const tarjeta = document.getElementById('tarjetaTabla');
+  const cuerpo  = document.getElementById('cuerpo');
+  const resumen = document.getElementById('resumen');
+  if (!nombre) { tarjeta.classList.add('d-none'); resumen.innerHTML = ''; return; }
+
+  const porPartido = {};
+  DATOS.partidos.forEach(p => porPartido[p.partido] = p);
+
+  const picks = [...DATOS.cartillas[nombre]].sort((a, b) => a.partido - b.partido);
+  let aciertos = 0, evaluados = 0;
+
+  cuerpo.innerHTML = picks.map(pk => {
+    const p = porPartido[pk.partido] || {};
+    const finalizado = p.estado === 'FINALIZADO' && p.resultado;
+    let claseFila = '', icono = '';
+
+    if (finalizado && pk.prediccion) {
+      evaluados++;
+      if (pk.prediccion === p.resultado) { aciertos++; claseFila = 'acierto'; icono = '✔'; }
+      else { claseFila = 'fallo'; icono = '✘'; }
+    }
+
+    const marcador = finalizado
+      ? `<span class="marcador num" style="font-size:.95rem;">${p.golesLocal} – ${p.golesVisita}</span>`
+      : `<span class="marcador pendiente">${fechaCorta(p.fecha)}</span>`;
+
+    return `
+      <tr class="${claseFila}">
+        <td class="ps-3 num">${pk.partido}</td>
+        <td class="d-none d-md-table-cell">${pk.grupo || p.grupo || ''}</td>
+        <td>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            ${imgBandera(p.banderaLocal, p.local)} ${p.local || pk.local}
+            <span class="text-secondary small">vs</span>
+            ${imgBandera(p.banderaVisita, p.visita)} ${p.visita || pk.visita}
+          </div>
+        </td>
+        <td class="text-center">${marcador}</td>
+        <td class="text-center">${badgePred(pk.prediccion)}</td>
+        <td class="text-center">${finalizado ? badgePred(p.resultado) : '<span class="text-muted small">—</span>'}</td>
+        <td class="text-center pe-3 resultado-icono">${icono}</td>
+      </tr>`;
+  }).join('');
+
+  resumen.innerHTML = `
+    <div class="card-yeti px-3 py-2 d-inline-block">
+      <b>${nombre}</b> ·
+      <span class="num">${aciertos}</span>/<span class="num">${evaluados}</span> aciertos ·
+      <span class="pts num">${aciertos * PUNTOS_POR_ACIERTO} pts</span>
+    </div>`;
+  tarjeta.classList.remove('d-none');
+
+  history.replaceState(null, '', 'cartillas.html?p=' + encodeURIComponent(nombre));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YetiBet 2026 · Polla Mundialera</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❄️</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
+  <link href="app.css" rel="stylesheet">
+</head>
+<body>
+
+<nav class="yeti-nav">
+  <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <a class="brand" href="index.html">YETIBET <span class="y26">2026</span></a>
+    <div class="d-flex gap-3">
+      <a class="nav-link active" href="index.html">Inicio</a>
+      <a class="nav-link" href="ranking.html">Ranking</a>
+      <a class="nav-link" href="cartillas.html">Cartillas</a>
+      <a class="nav-link" href="resultados.html">Resultados</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="copo" style="top:12%; left:8%;  font-size:2.2rem;">❄</span>
+  <span class="copo" style="top:30%; left:88%; font-size:3rem;">❄</span>
+  <span class="copo" style="top:65%; left:15%; font-size:1.6rem;">❄</span>
+  <span class="copo" style="top:18%; left:62%; font-size:1.8rem;">❄</span>
+  <div class="container position-relative">
+    <h1>YETIBET <span class="anio">2026</span></h1>
+    <p class="lema mt-3 mb-4">
+      La polla mundialera de México, Canadá y Estados Unidos.
+      72 partidos de fase de grupos, una cartilla, cero excusas. 🏔️⚽
+    </p>
+    <div class="d-flex gap-3 flex-wrap" id="statsHero">
+      <!-- estadísticas rápidas -->
+    </div>
+  </div>
+</header>
+
+<main class="container" style="margin-top:-1.5rem;">
+
+  <!-- accesos -->
+  <div class="row g-3 mb-5">
+    <div class="col-md-4">
+      <a class="card-yeti d-block p-4 h-100" href="ranking.html">
+        <div style="font-size:2rem;">🏆</div>
+        <h3 class="fs-5 mt-2 mb-1">Ranking</h3>
+        <p class="mb-0 small text-secondary">¿Quién va arriba en la pizarra? Aciertos, puntos y efectividad.</p>
+      </a>
+    </div>
+    <div class="col-md-4">
+      <a class="card-yeti d-block p-4 h-100" href="cartillas.html">
+        <div style="font-size:2rem;">📋</div>
+        <h3 class="fs-5 mt-2 mb-1">Cartillas</h3>
+        <p class="mb-0 small text-secondary">Revisa la cartilla de cada participante, acierto por acierto.</p>
+      </a>
+    </div>
+    <div class="col-md-4">
+      <a class="card-yeti d-block p-4 h-100" href="resultados.html">
+        <div style="font-size:2rem;">⚽</div>
+        <h3 class="fs-5 mt-2 mb-1">Resultados</h3>
+        <p class="mb-0 small text-secondary">Los marcadores del Mundial, grupo por grupo, del A al L.</p>
+      </a>
+    </div>
+  </div>
+
+  <!-- últimos resultados -->
+  <section class="mb-5">
+    <h2 class="fs-4 mb-3">Últimos marcadores</h2>
+    <div class="row g-3" id="ultimos">
+      <div class="text-secondary">Cargando…</div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="pie container">
+  YetiBet 2026 · hecha entre amigos · resultados vía Google Apps Script
+  <span id="actualizado"></span>
+</footer>
+
+<script src="app.js"></script>
+<script>
+(async () => {
+  const cont = document.getElementById('ultimos');
+  try {
+    const datos = await cargarDatos();
+
+    /* stats del hero */
+    const jugados = datos.partidos.filter(p => p.estado === 'FINALIZADO').length;
+    const participantes = Object.keys(datos.cartillas || {}).length;
+    document.getElementById('statsHero').innerHTML = `
+      <div class="card-yeti px-3 py-2"><b class="num">${jugados}</b>/<span class="num">72</span> partidos jugados</div>
+      <div class="card-yeti px-3 py-2"><b class="num">${participantes}</b> participantes</div>`;
+
+    /* últimos 6 finalizados */
+    const ultimos = datos.partidos
+      .filter(p => p.estado === 'FINALIZADO')
+      .sort((a, b) => b.partido - a.partido)
+      .slice(0, 6);
+
+    if (!ultimos.length) {
+      cont.innerHTML = '<div class="text-secondary">Aún no hay partidos finalizados. ¡Que ruede la pelota! ⚽</div>';
+    } else {
+      cont.innerHTML = ultimos.map(p => `
+        <div class="col-md-6 col-lg-4">
+          <div class="card-yeti">
+            <div class="partido">
+              <div class="equipo">${imgBandera(p.banderaLocal, p.local)}<span>${p.local}</span></div>
+              <div class="marcador num">${p.golesLocal} – ${p.golesVisita}</div>
+              <div class="equipo visita"><span>${p.visita}</span>${imgBandera(p.banderaVisita, p.visita)}</div>
+            </div>
+            <div class="text-center small text-secondary pb-2">Grupo ${p.grupo} · ${fechaCorta(p.fecha)}</div>
+          </div>
+        </div>`).join('');
+    }
+
+    document.getElementById('actualizado').textContent =
+      ' · datos: ' + fechaCorta(datos.actualizado);
+  } catch (e) {
+    mostrarError(cont, e.message);
+  }
+})();
+</script>
+</body>
+</html>
