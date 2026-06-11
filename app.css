@@ -69,7 +69,8 @@ h1, h2, h3, .display-font {
 }
 .hero h1 .anio { color: var(--dorado); }
 .hero .lema { color: var(--hielo); font-size: 1.15rem; max-width: 34rem; }
-.copo { position: absolute; color: rgba(255,255,255,.14); user-select: none; }
+.copo { position: absolute; color: rgba(255,255,255,.14); user-select: none; pointer-events: none; z-index: 0; }
+.hero .container { z-index: 1; }
 
 /* ---------- láminas (firma visual) ---------- */
 .lamina {
@@ -90,6 +91,29 @@ h1, h2, h3, .display-font {
   border: 1px solid var(--hielo);
   border-radius: .9rem;
   box-shadow: 0 2px 10px rgba(14,58,93,.07);
+  color: var(--glaciar);            /* evita heredar blanco dentro del hero */
+}
+
+/* ---------- stats del hero ---------- */
+.stat-hero {
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(191,217,234,.35);
+  border-radius: .8rem;
+  padding: .65rem 1.2rem;
+  color: var(--blanco);
+  backdrop-filter: blur(2px);
+}
+.stat-hero .cifra {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--dorado);
+}
+.stat-hero .etiqueta {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--hielo);
 }
 a.card-yeti { text-decoration: none; color: inherit; transition: transform .15s, box-shadow .15s; }
 a.card-yeti:hover { transform: translateY(-4px); box-shadow: 0 8px 22px rgba(14,58,93,.14); }
@@ -159,6 +183,17 @@ a.card-yeti:hover { transform: translateY(-4px); box-shadow: 0 8px 22px rgba(14,
   color: #6C8AA3; font-size: .8rem; text-align: center;
   padding: 2.5rem 0 1.5rem;
 }
+.pie .forjado {
+  display: inline-block;
+  margin-top: .55rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  color: var(--glaciar);
+  text-decoration: none;
+  border-bottom: 2px solid var(--dorado);
+  padding-bottom: 1px;
+}
+.pie .forjado:hover { color: var(--dorado); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

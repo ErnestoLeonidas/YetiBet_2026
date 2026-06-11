@@ -75,26 +75,67 @@
     </div>
   </section>
 
+  <!-- próximos partidos -->
+  <section class="mb-5">
+    <h2 class="fs-4 mb-3">Próximos partidos</h2>
+    <div class="row g-3" id="proximos">
+      <div class="text-secondary">Cargando…</div>
+    </div>
+  </section>
+
 </main>
 
 <footer class="pie container">
   YetiBet 2026 · hecha entre amigos · resultados vía Google Apps Script
-  <span id="actualizado"></span>
+  <span id="actualizado"></span><br>
+  <a class="forjado" href="https://github.com/TU_USUARIO_GITHUB" target="_blank" rel="noopener">
+    🪽🩸🪽 Forjado en Baal | Ernesto Velasquez
+  </a>
 </footer>
 
 <script src="app.js"></script>
 <script>
 (async () => {
   const cont = document.getElementById('ultimos');
+  const contProx = document.getElementById('proximos');
   try {
     const datos = await cargarDatos();
 
-    /* stats del hero */
+    /* stats del hero (con estilo propio, legibles sobre el azul) */
     const jugados = datos.partidos.filter(p => p.estado === 'FINALIZADO').length;
     const participantes = Object.keys(datos.cartillas || {}).length;
+    const ranking = calcularRanking(datos);
+    const lider = ranking.length && ranking[0].puntos > 0 ? ranking[0].nombre : null;
+
     document.getElementById('statsHero').innerHTML = `
-      <div class="card-yeti px-3 py-2"><b class="num">${jugados}</b>/<span class="num">72</span> partidos jugados</div>
-      <div class="card-yeti px-3 py-2"><b class="num">${participantes}</b> participantes</div>`;
+      <div class="stat-hero text-center">
+        <div class="cifra num">${jugados}<span style="font-size:.9rem;color:var(--hielo);">/72</span></div>
+        <div class="etiqueta">Partidos jugados</div>
+      </div>
+      <div class="stat-hero text-center">
+        <div class="cifra num">${participantes}</div>
+        <div class="etiqueta">Participantes</div>
+      </div>
+      ${lider ? `
+      <div class="stat-hero text-center">
+        <div class="cifra">🥇</div>
+        <div class="etiqueta">Líder: ${lider}</div>
+      </div>` : ''}`;
+
+    /* tarjeta de partido reutilizable */
+    const tarjeta = (p, abajo) => `
+      <div class="col-md-6 col-lg-4">
+        <div class="card-yeti">
+          <div class="partido">
+            <div class="equipo">${imgBandera(p.banderaLocal, p.local)}<span>${p.local}</span></div>
+            ${p.estado === 'FINALIZADO'
+              ? `<div class="marcador num">${p.golesLocal} – ${p.golesVisita}</div>`
+              : `<div class="marcador pendiente">${fechaCorta(p.fecha)}</div>`}
+            <div class="equipo visita"><span>${p.visita}</span>${imgBandera(p.banderaVisita, p.visita)}</div>
+          </div>
+          <div class="text-center small text-secondary pb-2">${abajo}</div>
+        </div>
+      </div>`;
 
     /* últimos 6 finalizados */
     const ultimos = datos.partidos
@@ -102,26 +143,27 @@
       .sort((a, b) => b.partido - a.partido)
       .slice(0, 6);
 
-    if (!ultimos.length) {
-      cont.innerHTML = '<div class="text-secondary">Aún no hay partidos finalizados. ¡Que ruede la pelota! ⚽</div>';
-    } else {
-      cont.innerHTML = ultimos.map(p => `
-        <div class="col-md-6 col-lg-4">
-          <div class="card-yeti">
-            <div class="partido">
-              <div class="equipo">${imgBandera(p.banderaLocal, p.local)}<span>${p.local}</span></div>
-              <div class="marcador num">${p.golesLocal} – ${p.golesVisita}</div>
-              <div class="equipo visita"><span>${p.visita}</span>${imgBandera(p.banderaVisita, p.visita)}</div>
-            </div>
-            <div class="text-center small text-secondary pb-2">Grupo ${p.grupo} · ${fechaCorta(p.fecha)}</div>
-          </div>
-        </div>`).join('');
-    }
+    cont.innerHTML = ultimos.length
+      ? ultimos.map(p => tarjeta(p, `Grupo ${p.grupo} · ${fechaCorta(p.fecha)}`)).join('')
+      : '<div class="text-secondary">Aún no hay partidos finalizados. ¡Que ruede la pelota! ⚽</div>';
+
+    /* próximos 6 por jugar (los más cercanos en fecha) */
+    const ahora = Date.now();
+    const proximos = datos.partidos
+      .filter(p => p.estado !== 'FINALIZADO')
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+      .filter(p => new Date(p.fecha).getTime() > ahora - 3 * 3600 * 1000)
+      .slice(0, 6);
+
+    contProx.innerHTML = proximos.length
+      ? proximos.map(p => tarjeta(p, `Grupo ${p.grupo} · Partido ${p.partido}`)).join('')
+      : '<div class="text-secondary">Fase de grupos completa 🎉</div>';
 
     document.getElementById('actualizado').textContent =
       ' · datos: ' + fechaCorta(datos.actualizado);
   } catch (e) {
     mostrarError(cont, e.message);
+    contProx.innerHTML = '';
   }
 })();
 </script>
