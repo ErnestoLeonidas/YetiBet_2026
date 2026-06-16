@@ -95,7 +95,6 @@
 </main>
 
 <footer class="pie container compact-footer">
-  YetiBet 2026 <span id="actualizado"></span><br>
   <a class="forjado" href="https://github.com/TU_USUARIO_GITHUB" target="_blank" rel="noopener">
     🪽🩸🪽 Forjado en Baal | Ernesto Velasquez
   </a>
@@ -122,9 +121,6 @@
     pintarRanking(rankingHome, ranking);
     pintarRealizados(realizadosCont, realizados);
     pintarPorJugar(porJugarCont, porJugar);
-
-    document.getElementById('actualizado').textContent =
-      datos.actualizado ? ' · actualizado: ' + fechaCorta(datos.actualizado) : '';
   } catch (e) {
     rankingHome.innerHTML = '<tr><td colspan="4" class="text-danger py-3">No se pudieron cargar los datos.</td></tr>';
     realizadosCont.innerHTML = `<tr><td colspan="4" class="text-danger py-3">${e.message}</td></tr>`;

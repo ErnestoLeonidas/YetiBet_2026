@@ -702,7 +702,6 @@ a.card-yeti:hover { transform: translateY(-4px); box-shadow: 0 8px 22px rgba(14,
 }
 
 .board-panel .table-responsive {
-  max-height: 16.6rem;
   min-height: 0;
   overflow: auto;
 }
@@ -839,7 +838,7 @@ a.card-yeti:hover { transform: translateY(-4px); box-shadow: 0 8px 22px rgba(14,
 }
 
 .compact-footer {
-  padding: .9rem 0;
+  padding: .6rem 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
