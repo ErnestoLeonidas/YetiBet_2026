@@ -7,10 +7,9 @@
  *  donde se indica Nombre + archivo .xlsx, lo procesa y
  *  carga las predicciones en la hoja "Cartillas".
  *
- *  ⚙️ CONFIGURACIÓN OBLIGATORIA (1 vez):
- *  En el editor de Apps Script:
- *    Servicios (+) → "Drive API" → Agregar  (versión v3)
- *  Esto permite convertir el .xlsx a Google Sheets para leerlo.
+ *  El flujo principal lee el .xlsx en el navegador y envia solo las
+ *  predicciones a Apps Script. Drive API queda solo para funciones legacy
+ *  de conversion server-side.
  * ============================================================
  */
 
@@ -36,40 +35,103 @@ function abrirCargador() {
  *  5. Borra el archivo temporal
  * ============================================================ */
 function procesarExcel(nombre, base64, nombreArchivo) {
+  return {
+    ok: false,
+    error: 'Estás ejecutando el cargador antiguo. Copia el cargar.html actualizado: ahora el Excel se lee en el navegador y debe llamar a procesarPredicciones(), no a procesarExcel().'
+  };
+}
+
+function procesarPredicciones(nombre, predicciones) {
+  try {
+    if (!nombre || !nombre.trim()) throw new Error('Debes indicar un nombre.');
+    if (!predicciones || !predicciones.length) throw new Error('No se recibieron predicciones.');
+
+    var limpias = normalizarPrediccionesCliente(predicciones);
+    if (!limpias.length) throw new Error('No se encontraron predicciones válidas.');
+
+    var stats = guardarCartilla(nombre.trim(), limpias);
+    var sinPrediccion = limpias
+      .filter(function(p) { return !p.prediccion; })
+      .map(function(p) { return p.partido; });
+
+    return {
+      ok: true,
+      participante: nombre.trim(),
+      cargadas: limpias.length,
+      sinPrediccion: sinPrediccion,
+      reemplazo: stats.reemplazo
+    };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+function diagnosticarCargaCartillas() {
+  try {
+    var ss = obtenerSpreadsheet();
+    var hoja = ss.getSheetByName(LOADER_CONFIG.HOJA_CARTILLAS) || asegurarHojaCartillas();
+    return {
+      ok: true,
+      spreadsheet: ss.getName(),
+      hoja: hoja.getName(),
+      filas: hoja.getLastRow()
+    };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
+function normalizarPrediccionesCliente(predicciones) {
+  var validas = { LOCAL: true, EMPATE: true, VISITA: true, '': true };
+  return predicciones.map(function(p) {
+    var partido = Number(p.partido);
+    if (!partido || isNaN(partido)) return null;
+    var pred = String(p.prediccion || '').trim().toUpperCase();
+    if (!validas[pred]) pred = '';
+    return {
+      partido: partido,
+      grupo: String(p.grupo || '').replace(/^Grupo\s*/i, '').trim(),
+      local: String(p.local || '').trim(),
+      visita: String(p.visita || '').trim(),
+      prediccion: pred
+    };
+  }).filter(Boolean);
+}
+
+function procesarArchivoDrive(nombre, archivoUrlOId) {
   var temporalId = null;
   try {
     if (!nombre || !nombre.trim()) throw new Error('Debes indicar un nombre.');
-    if (!base64) throw new Error('No se recibió el archivo.');
 
-    // 1) base64 → blob → convertir a Google Sheets
-    var bytes = Utilities.base64Decode(base64);
-    var blob = Utilities.newBlob(bytes, MimeType.MICROSOFT_EXCEL, nombreArchivo || 'cartilla.xlsx');
+    var fileId = extraerDriveId(archivoUrlOId);
+    if (!fileId) throw new Error('Pega una URL o ID válido de Google Drive / Google Sheets.');
 
-    var recurso = {
-      name: 'TMP_cartilla_' + nombre.trim(),
-      mimeType: MimeType.GOOGLE_SHEETS
-    };
-    var archivo = Drive.Files.create(recurso, blob);   // requiere Drive API (servicio avanzado)
-    temporalId = archivo.id;
+    var file = DriveApp.getFileById(fileId);
+    var mime = file.getMimeType();
+    var ssTemp;
 
-    // 2) abrir y ubicar la pestaña de la cartilla
-    var ssTemp = SpreadsheetApp.openById(temporalId);
-    var hojaExcel = ssTemp.getSheetByName(LOADER_CONFIG.HOJA_ORIGEN_EXCEL) || ssTemp.getSheets()[0];
-    var datos = hojaExcel.getDataRange().getValues();
-
-    // 3) extraer predicciones
-    var resultado = extraerPredicciones(datos);
-    if (resultado.predicciones.length === 0) {
-      throw new Error('No se encontraron predicciones en el archivo. ' +
-                      '¿Es el formato correcto de la cartilla?');
+    if (mime === MimeType.GOOGLE_SHEETS || mime === 'application/vnd.google-apps.spreadsheet') {
+      ssTemp = SpreadsheetApp.openById(fileId);
+    } else {
+      var recurso = {
+        name: 'TMP_cartilla_' + nombre.trim(),
+        mimeType: MimeType.GOOGLE_SHEETS
+      };
+      var archivo = crearSpreadsheetTemporal(recurso, file.getBlob());
+      temporalId = archivo.id;
+      ssTemp = abrirSpreadsheetConvertido(temporalId);
     }
 
-    // nombre del formulario manda; si viene vacío en el Excel no importa
+    var hojaExcel = ssTemp.getSheetByName(LOADER_CONFIG.HOJA_ORIGEN_EXCEL) || ssTemp.getSheets()[0];
+    var datos = hojaExcel.getDataRange().getValues();
+    var resultado = extraerPredicciones(datos);
+
+    if (resultado.predicciones.length === 0) {
+      throw new Error('No se encontraron predicciones. Revisa que el archivo tenga encabezado "Partido" y marcas "x".');
+    }
+
     var participante = nombre.trim();
-
-    // 4) escribir en hoja Cartillas
     var stats = guardarCartilla(participante, resultado.predicciones);
-
     return {
       ok: true,
       participante: participante,
@@ -77,16 +139,66 @@ function procesarExcel(nombre, base64, nombreArchivo) {
       sinPrediccion: resultado.sinPrediccion,
       reemplazo: stats.reemplazo
     };
-
   } catch (e) {
-    return { ok: false, error: String(e.message || e) };
+    return { ok: false, error: mensajeCargaExcel(e) };
   } finally {
-    // 5) limpiar temporal
     if (temporalId) {
       try { Drive.Files.remove(temporalId); }
       catch (e2) { try { DriveApp.getFileById(temporalId).setTrashed(true); } catch (e3) {} }
     }
   }
+}
+
+function extraerDriveId(valor) {
+  var texto = String(valor || '').trim();
+  if (!texto) return '';
+
+  var patrones = [
+    /\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /^([a-zA-Z0-9_-]{20,})$/
+  ];
+
+  for (var i = 0; i < patrones.length; i++) {
+    var m = texto.match(patrones[i]);
+    if (m) return m[1];
+  }
+  return '';
+}
+
+function crearSpreadsheetTemporal(recurso, blob) {
+  if (typeof Drive === 'undefined' || !Drive.Files || !Drive.Files.create) {
+    throw new Error('Drive API no está habilitada. En Apps Script ve a Servicios (+) y agrega Drive API.');
+  }
+
+  try {
+    return Drive.Files.create(recurso, blob);
+  } catch (e) {
+    throw new Error('No se pudo convertir el Excel con Drive API. Revisa permisos de Drive y vuelve a autorizar el script. Detalle: ' + String(e.message || e));
+  }
+}
+
+function abrirSpreadsheetConvertido(fileId) {
+  var ultimoError = null;
+
+  for (var intento = 1; intento <= 8; intento++) {
+    try {
+      return SpreadsheetApp.openById(fileId);
+    } catch (e) {
+      ultimoError = e;
+      Utilities.sleep(1000 + intento * 500);
+    }
+  }
+
+  throw new Error('El archivo se convirtió, pero Apps Script no pudo abrirlo desde Drive. Reintenta en unos segundos o revisa permisos del archivo temporal. Detalle: ' + String(ultimoError && (ultimoError.message || ultimoError)));
+}
+
+function mensajeCargaExcel(e) {
+  var msg = String(e && (e.message || e));
+  if (/PERMISSION_DENIED/i.test(msg)) {
+    return 'Permiso denegado al leer el Excel convertido. Revisa que Drive API esté habilitada, vuelve a autorizar el script y confirma que la implementación se ejecuta como tú.';
+  }
+  return msg;
 }
 
 /* ------------------------------------------------------------

@@ -18,6 +18,8 @@
 - `?recurso=cartillas` devuelve solo cartillas.
 - `?grupo=A` o `?partido=1` filtran partidos.
 
-## Dependencia opcional
+## Carga de cartillas
 
-Para cargar cartillas `.xlsx` desde el modal, activa el servicio avanzado `Drive API` en Apps Script. Si no lo activas, el resto de la API y la actualizacion de resultados sigue funcionando.
+El modal lee el `.xlsx` en el navegador y envia solo las predicciones a Apps Script. No requiere que el archivo exista en el servidor ni en Apps Script.
+
+`Drive API` solo es necesaria si decides usar las funciones legacy de conversion server-side (`procesarExcel` / `procesarArchivoDrive`).

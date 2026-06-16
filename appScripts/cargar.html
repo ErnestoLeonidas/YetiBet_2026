@@ -8,6 +8,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     body { background: #f8f9fa; }
     .card { border: none; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
@@ -30,7 +31,7 @@
     <div class="card-body p-4">
       <h5 class="card-title mb-1">📤 Cargar cartilla Excel</h5>
       <p class="text-muted small mb-4">
-        Sube la cartilla (.xlsx) con las predicciones marcadas con
+        Versión navegador: sube la cartilla (.xlsx) con las predicciones marcadas con
         <span class="badge text-bg-secondary">x</span> en LOCAL / EMPATE / VISITA.
       </p>
 
@@ -108,17 +109,73 @@ function subir() {
   bloquear(true);
   const lector = new FileReader();
   lector.onload = e => {
-    const base64 = e.target.result.split(',')[1];   // quitar "data:...;base64,"
-    google.script.run
-      .withSuccessHandler(respuesta)
-      .withFailureHandler(err => {
+    try {
+      const predicciones = extraerPrediccionesExcel(e.target.result);
+      if (!predicciones.length) {
         bloquear(false);
-        mostrarAlerta('danger', '❌ Error: ' + (err.message || err));
-      })
-      .procesarExcel(nombre, base64, archivoSeleccionado.name);
+        return mostrarAlerta('danger', '❌ No se encontraron predicciones en el Excel.');
+      }
+      google.script.run
+        .withSuccessHandler(respuesta)
+        .withFailureHandler(err => {
+          bloquear(false);
+          mostrarAlerta('danger', '❌ Error: ' + (err.message || err));
+        })
+        .procesarPredicciones(nombre, predicciones);
+    } catch (err) {
+      bloquear(false);
+      mostrarAlerta('danger', '❌ ' + (err.message || err));
+    }
   };
   lector.onerror = () => { bloquear(false); mostrarAlerta('danger', '❌ No se pudo leer el archivo.'); };
-  lector.readAsDataURL(archivoSeleccionado);
+  lector.readAsArrayBuffer(archivoSeleccionado);
+}
+
+function extraerPrediccionesExcel(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+  const nombreHoja = wb.SheetNames.includes('Calendario Fase de Grupos Mundi')
+    ? 'Calendario Fase de Grupos Mundi'
+    : wb.SheetNames[0];
+  const ws = wb.Sheets[nombreHoja];
+  const datos = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  let filaHeader = -1;
+  let colInicio = -1;
+  for (let i = 0; i < Math.min(datos.length, 25); i++) {
+    for (let j = 0; j < Math.min(datos[i].length, 5); j++) {
+      if (String(datos[i][j]).trim().toLowerCase() === 'partido') {
+        filaHeader = i;
+        colInicio = j;
+        break;
+      }
+    }
+    if (filaHeader >= 0) break;
+  }
+  if (filaHeader < 0) throw new Error('No se encontró el encabezado "Partido".');
+
+  const predicciones = [];
+  for (let f = filaHeader + 1; f < datos.length; f++) {
+    const fila = datos[f];
+    const partido = Number(fila[colInicio]);
+    if (!partido || Number.isNaN(partido)) continue;
+
+    const marcaLocal = String(fila[colInicio + 6] || '').trim().toLowerCase();
+    const marcaEmpate = String(fila[colInicio + 7] || '').trim().toLowerCase();
+    const marcaVisita = String(fila[colInicio + 8] || '').trim().toLowerCase();
+    let prediccion = '';
+    if (marcaLocal === 'x') prediccion = 'LOCAL';
+    else if (marcaEmpate === 'x') prediccion = 'EMPATE';
+    else if (marcaVisita === 'x') prediccion = 'VISITA';
+
+    predicciones.push({
+      partido,
+      grupo: String(fila[colInicio + 1] || '').replace(/^Grupo\s*/i, '').trim(),
+      local: String(fila[colInicio + 2] || '').trim(),
+      visita: String(fila[colInicio + 3] || '').trim(),
+      prediccion
+    });
+  }
+  return predicciones;
 }
 
 function respuesta(r) {
