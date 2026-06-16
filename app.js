@@ -3,10 +3,10 @@
    ============================================================ */
 
 /* 👉 PEGA AQUÍ la URL de tu Web App de Apps Script (termina en /exec) */
-const API_URL = 'https://script.google.com/macros/s/AKfycbyWqQv5wXPwOOMqUfqsUghXZDCbCOlle20upDgOBmRnYdR_BqlupxlzBaOL0sJ_gUtI/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxzrQDa1VsJI_Wm492k5vT_tGlFJnQjElbUWz0swrPG2frQA-oar28soQdq_FhHuDyq/exec';
 
 /* Puntos por acierto 1X2 (regla de la polla) */
-const PUNTOS_POR_ACIERTO = 3;
+const PUNTOS_POR_ACIERTO = 1;
 
 const CACHE_KEY = 'yetibet_datos';
 const CACHE_MS = 2 * 60 * 1000;   // 2 minutos

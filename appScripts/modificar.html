@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<!-- En Apps Script: Archivo (+) → HTML → nombre EXACTO: "modificar" -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background:#f8f9fa; }
+    .fila-pick { border-bottom: 1px solid #e9ecef; padding: .45rem 0; }
+    .fila-pick.cambiada { background: #FFF8E1; }
+    .equipo { font-size: .85rem; font-weight: 600; }
+    .btn-check + label { font-size: .72rem; font-weight: 700; padding: .2rem .55rem; }
+    #lista { max-height: 380px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+<div class="container py-3">
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <h5 class="card-title">✏️ Modificar cartilla</h5>
+
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-7">
+          <label class="form-label fw-semibold" for="sel">Participante</label>
+          <select class="form-select" id="sel" disabled><option>Cargando…</option></select>
+        </div>
+        <div class="col-5 text-end">
+          <span class="badge text-bg-warning d-none" id="badgeCambios">0 cambios</span>
+        </div>
+      </div>
+
+      <div id="lista" class="d-none"></div>
+
+      <div class="d-grid mt-3">
+        <button class="btn btn-primary" id="btn" onclick="guardar()" disabled>
+          <span id="btnTexto">Guardar cambios</span>
+          <span id="spin" class="spinner-border spinner-border-sm d-none"></span>
+        </button>
+      </div>
+
+      <div id="alerta" class="alert mt-3 d-none"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let PICKS = [];           // estado original
+let participanteActual = '';
+
+google.script.run.withSuccessHandler(lista => {
+  if (!lista.length) { $('sel').innerHTML = '<option>No hay participantes</option>'; return; }
+  $('sel').innerHTML = '<option value="">— Selecciona —</option>' +
+    lista.map(n => `<option>${n}</option>`).join('');
+  $('sel').disabled = false;
+}).listarParticipantes();
+
+$('sel').addEventListener('change', () => {
+  const nombre = $('sel').value;
+  if (!nombre) { $('lista').classList.add('d-none'); $('btn').disabled = true; return; }
+  cargarCartilla(nombre);
+});
+
+function cargarCartilla(nombre) {
+  $('lista').innerHTML = '<div class="text-secondary py-3 text-center">Cargando cartilla…</div>';
+  $('lista').classList.remove('d-none');
+  google.script.run
+    .withSuccessHandler(r => {
+      if (!r.ok) return alerta('danger', '❌ ' + r.error);
+      participanteActual = nombre;
+      PICKS = r.picks;
+      pintar();
+      ocultarAlerta();
+    })
+    .withFailureHandler(e => alerta('danger', '❌ ' + e.message))
+    .obtenerCartillaParaEditar(nombre);
+}
+
+function pintar() {
+  $('lista').innerHTML = PICKS.map((p, idx) => {
+    const ops = ['LOCAL', 'EMPATE', 'VISITA'].map(op => {
+      const id = `op_${idx}_${op}`;
+      const checked = p.prediccion === op ? 'checked' : '';
+      const etiqueta = op === 'LOCAL' ? 'L' : op === 'EMPATE' ? 'E' : 'V';
+      return `
+        <input type="radio" class="btn-check" name="p_${idx}" id="${id}" value="${op}" ${checked}
+               onchange="marcarCambio(${idx}, '${op}')">
+        <label class="btn btn-outline-primary" for="${id}">${etiqueta}</label>`;
+    }).join('');
+
+    return `
+      <div class="fila-pick d-flex align-items-center justify-content-between gap-2" id="fila_${idx}">
+        <div class="equipo">
+          <span class="text-secondary">#${p.partido}</span>
+          ${p.local} <span class="text-secondary">vs</span> ${p.visita}
+        </div>
+        <div class="btn-group btn-group-sm" role="group">${ops}</div>
+      </div>`;
+  }).join('');
+  actualizarBadge();
+}
+
+function marcarCambio(idx, nuevoValor) {
+  const cambiada = PICKS[idx].prediccion !== nuevoValor;
+  document.getElementById('fila_' + idx).classList.toggle('cambiada', cambiada);
+  PICKS[idx]._nueva = nuevoValor;
+  actualizarBadge();
+}
+
+function obtenerCambios() {
+  return PICKS
+    .filter(p => p._nueva !== undefined && p._nueva !== p.prediccion)
+    .map(p => ({ fila: p.fila, prediccion: p._nueva }));
+}
+
+function actualizarBadge() {
+  const n = obtenerCambios().length;
+  const b = $('badgeCambios');
+  b.classList.toggle('d-none', n === 0);
+  b.textContent = n + (n === 1 ? ' cambio' : ' cambios');
+  $('btn').disabled = n === 0;
+}
+
+function guardar() {
+  const cambios = obtenerCambios();
+  bloquear(true);
+  google.script.run
+    .withSuccessHandler(r => {
+      bloquear(false);
+      if (!r.ok) return alerta('danger', '❌ ' + r.error);
+      alerta('success', `✅ ${r.guardados} predicción(es) actualizadas para <b>${participanteActual}</b>.`);
+      // consolidar estado: lo nuevo pasa a ser lo original
+      PICKS.forEach(p => { if (p._nueva !== undefined) { p.prediccion = p._nueva; delete p._nueva; } });
+      pintar();
+    })
+    .withFailureHandler(e => { bloquear(false); alerta('danger', '❌ ' + e.message); })
+    .guardarCambiosCartilla(participanteActual, cambios);
+}
+
+function bloquear(b) {
+  $('btn').disabled = b;
+  $('btnTexto').textContent = b ? 'Guardando…' : 'Guardar cambios';
+  $('spin').classList.toggle('d-none', !b);
+}
+function alerta(tipo, html) {
+  const a = $('alerta');
+  a.className = 'alert mt-3 alert-' + tipo;
+  a.innerHTML = html;
+}
+function ocultarAlerta() { $('alerta').classList.add('d-none'); }
+</script>
+</body>
+</html>
